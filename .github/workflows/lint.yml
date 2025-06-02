@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   lua-check:
+    timeout-minutes: ${{ fromJSON(vars.GHA_DEFAULT_TIMEOUT) }}
     name: Lua Check
     runs-on: ubuntu-latest
     permissions:
@@ -29,14 +30,15 @@ jobs:
     # Optional step to run on only changed files
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@54849deb963ca9f24185fb5de2965e002d066e6b # v37
+      uses: kong/changed-files@4edd678ac3f81e2dc578756871e4d00c19191daf
       with:
         files: |
           **.lua
 
     - name: Lua Check
       if: steps.changed-files.outputs.any_changed == 'true'
-      uses: Kong/public-shared-actions/code-check-actions/lua-lint@33449c46c6766a3d3c8f167cc383381225862b36
+      uses: Kong/public-shared-actions/code-check-actions/lua-lint@a98be0184f832cb24a9dd233f99074e8ba17b488 # v2.3.3
       with:
         additional_args: '--no-default-config --config .luacheckrc'
         files: ${{ steps.changed-files.outputs.all_changed_files }}
+        action_fail: true

@@ -27,7 +27,7 @@ local function poor_mans_xml_encoding(output, shape, shape_name, data, indent)
 
     if shape.type == "structure" then
       for name, member in pairs(shape.members) do
-        if data[name] then
+        if data[name] ~= nil then
           poor_mans_xml_encoding(output, member, name, data[name], indent + 1)
         end
       end
@@ -157,7 +157,7 @@ local function build_request(operation, config, params)
 
   -- inject parameters in the right places; path/query/header/body
   -- this assumes they all live on the top-level of the structure, is this correct??
-  for name, member_config in pairs(operation.input.members) do
+  for name, member_config in pairs((operation.input or {}).members or {}) do
     local param_value = params[name]
     -- TODO: date-time value should be properly formatted???
     if param_value ~= nil then
@@ -187,8 +187,6 @@ local function build_request(operation, config, params)
         if config.protocol == "query" then
           -- no location specified, but protocol is query, so it goes into query
           request.query[name] = param_value
-        elseif member_config.type == "blob" then
-          request.body = param_value
         else
           -- nowhere else to go, so put it in the body (for json and xml)
           body_tbl[name] = param_value
@@ -205,6 +203,21 @@ local function build_request(operation, config, params)
 
   for k,v in pairs(parse_query(query)) do
     request.query[k] = v
+  end
+
+  local payload_member = operation.input and operation.input.payload
+  if payload_member and body_tbl[payload_member] then
+    local member_config = operation.input.members[payload_member]
+    if member_config.type == "structure" then
+      body_tbl = type(body_tbl[payload_member]) == "table" and body_tbl[payload_member] or body_tbl
+
+    elseif body_tbl[payload_member] then
+      request.body = body_tbl[payload_member]
+      if member_config.type == "binary" and member_config.streaming == true then
+        request.headers["Content-Type"] = "binary/octet-stream"
+      end
+      body_tbl[payload_member] = nil
+    end
   end
 
   local table_empty = not next(body_tbl)

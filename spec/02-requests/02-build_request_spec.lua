@@ -5,10 +5,11 @@ describe("operations protocol", function()
 
 
   local build_request
-  local operation
-  local config
-  local params
+  local operation, operation_with_payload_field
+  local config, config_with_payload
+  local params, params_with_payload
   local snapshot
+  local binary_data
 
   setup(function()
     snapshot = assert:snapshot()
@@ -26,6 +27,8 @@ describe("operations protocol", function()
 
 
   before_each(function()
+    binary_data = "abcd" --"\00\01\02\03"
+
     operation = {
       name = "AssumeRole",
       http = {
@@ -76,6 +79,9 @@ describe("operations protocol", function()
           RoleSessionName = {
             type = "string",
           },
+          BinaryData = {
+            type = "blob",
+          },
           subStructure = {
             locationName = "someSubStructure",
             type = "structure",
@@ -99,6 +105,37 @@ describe("operations protocol", function()
       }
     }
 
+    operation_with_payload_field = {
+      name = "PutObject",
+      http = {
+        method = "PUT",
+        requestUri = "/{Bucket}/{Key+}"
+      },
+      input = {
+        type = "structure",
+        required = {
+          "Bucket",
+          "Key"
+        },
+        members = {
+          Bucket = {
+            type = "string",
+            location = "uri",
+            locationName = "Bucket"
+          },
+          Key = {
+            type = "string",
+            location = "uri",
+            locationName = "Key"
+          },
+          Body = {
+            type = "blob",
+          },
+        },
+        payload = "Body"
+      },
+    }
+
     config = {
       apiVersion = "2011-06-15",
       --endpointPrefix = "sts",
@@ -113,6 +150,19 @@ describe("operations protocol", function()
       xmlNamespace = "https://sts.amazonaws.com/doc/2011-06-15/"
     }
 
+    config_with_payload = {
+      apiVersion = "2006-03-01",
+      signingName = "s3",
+      globalEndpoint = "s3.amazonaws.com",
+      --protocol = "query",
+      serviceAbbreviation = "AWS S3",
+      serviceFullName = "AWS Object Storage",
+      serviceId = "S3",
+      signatureVersion = "v4",
+      uid = "s3-2006-03-01",
+      xmlNamespace = "https://s3.amazonaws.com/doc/2006-03-01/"
+    }
+
     params = {
       RoleArn = "hello",
       RoleSessionName = "world",
@@ -124,7 +174,14 @@ describe("operations protocol", function()
         hello = "the default hello thinghy",
         world = "the default world thinghy"
       },
-      subList = { 1, 2 ,3, }
+      subList = { 1, 2 ,3, },
+      BinaryData = binary_data,
+    }
+
+    params_with_payload = {
+      Bucket = "hello",
+      Key = "world",
+      Body = binary_data,
     }
 
   end)
@@ -164,6 +221,7 @@ describe("operations protocol", function()
         Action = "AssumeRole",
         Version = "2011-06-15",
         nice = '',
+        BinaryData = binary_data,
       }
     }, request)
   end)
@@ -182,7 +240,7 @@ describe("operations protocol", function()
     assert.same({
       headers = {
         ["X-Sooper-Secret"] = "towel",
-        ["Content-Length"] = 152,
+        ["Content-Length"] = 172,
         ["Content-Type"] = "application/x-amz-json-1.0",
         ["X-Amz-Target"] = "sts.AssumeRole",
         ["Host"] = "sts.amazonaws.com",
@@ -199,11 +257,12 @@ describe("operations protocol", function()
         subList = { 1,2,3 },
         RoleArn = "hello",
         RoleSessionName = "world",
+        BinaryData = binary_data,
       },
       query = {
         UserId = "Arthur Dent",
         nice = '',
-      }
+      },
     }, request)
   end)
 
@@ -221,7 +280,7 @@ describe("operations protocol", function()
     assert.same({
       headers = {
         ["X-Sooper-Secret"] = "towel",
-        ["Content-Length"] = 152,
+        ["Content-Length"] = 172,
         ["Content-Type"] = "application/x-amz-json-1.0",
         ["X-Amz-Target"] = "sts.AssumeRole",
         ["Host"] = "sts.amazonaws.com",
@@ -238,11 +297,33 @@ describe("operations protocol", function()
         subList = { 1,2,3 },
         RoleArn = "hello",
         RoleSessionName = "world",
+        BinaryData = binary_data,
       },
       query = {
         UserId = "Arthur Dent",
         nice = '',
       }
+    }, request)
+  end)
+
+  it("json: querystring, uri, header and body params, with payload field", function()
+
+    config_with_payload.protocol = "json"
+
+    local request = build_request(operation_with_payload_field, config_with_payload, params_with_payload)
+
+    assert.same({
+      headers = {
+        ["Content-Length"] = 4,
+        ["X-Amz-Target"] = "s3.PutObject",
+        ["Host"] = "s3.amazonaws.com",
+      },
+      method = 'PUT',
+      path = '/hello/world',
+      host = 's3.amazonaws.com',
+      port = 443,
+      body = binary_data,
+      query = {},
     }, request)
   end)
 
@@ -280,7 +361,7 @@ describe("operations protocol", function()
     assert.same({
       headers = {
         ["X-Sooper-Secret"] = "towel",
-        ["Content-Length"] = 424,
+        ["Content-Length"] = 456,
         ["Content-Type"] = "application/xml",
         ["X-Amz-Target"] = "sts.AssumeRole",
         ["Host"] = "sts.amazonaws.com",
@@ -294,6 +375,8 @@ describe("operations protocol", function()
           [1] = 'hello' },
         RoleSessionName = {
           [1] = 'world' },
+        BinaryData = {
+          [1] = binary_data },
         attr = {
           [1] = 'xmlns',
           xmlns = 'cool-name-space' },

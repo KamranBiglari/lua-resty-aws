@@ -92,6 +92,13 @@ To install from the git repo:
     cd lua-resty-aws
     make install
 
+### Troubleshooting
+
+MacOS has a known issue that the libexpat header file 'expat_config.h' is missing. If you run into that issue, install libexpat manually (eg. `brew install expat`). And then include the libexpat location when installing;
+        luarocks install lua-resty-aws EXPAT_DIR=/path/to/expat
+
+Details: https://github.com/lunarmodules/luaexpat/issues/32
+
 ---
 
 ## Development
@@ -143,7 +150,7 @@ or run
 
 ## Copyright and license
 
-Copyright: (c) 2020-2023 Kong, Inc.
+Copyright: (c) 2020-2024 Kong, Inc.
 
 Author: Thijs Schreijer
 
@@ -169,6 +176,60 @@ Release process:
 1. upload using: `VERSION=x.y.z APIKEY=abc... make upload`
 1. test installing the rock from LuaRocks
 
+
+### 1.5.4 (23-Sep-2024)
+
+- fix: fix configure endpoint bug in getRegionPrefix
+  [129](https://github.com/Kong/lua-resty-aws/pull/129)
+
+### 1.5.3 (02-Aug-2024)
+
+- fix: build the request body based on payload field
+  [126](https://github.com/Kong/lua-resty-aws/pull/126)
+
+
+### 1.5.2 (29-Jul-2024)
+
+- fix: fix sts regional endpoint injection under several cases
+  [123](https://github.com/Kong/lua-resty-aws/pull/123)
+
+### 1.5.1 (20-Jun-2024)
+
+- fix: when a "blob" type has no location specified, then use it as the body, same as with other types.
+  [120](https://github.com/Kong/lua-resty-aws/pull/120)
+
+### 1.5.0 (20-May-2024)
+
+- feat: decode AWS api response json body with array metatable
+  [114](https://github.com/Kong/lua-resty-aws/pull/114)
+
+- fix: do not inject region info for sts service with VPC endpoint hostname
+  [113](https://github.com/Kong/lua-resty-aws/pull/113)
+
+### 1.4.1 (19-Apr-2024)
+
+- fix: patch expanduser function to be more friendly to OpenResty environment
+  [111](https://github.com/Kong/lua-resty-aws/pull/111)
+
+### 1.4.0 (20-Mar-2024)
+
+- fix: aws configuration cannot be loaded due to pl.path cannot resolve the path started with ~
+  [94](https://github.com/Kong/lua-resty-aws/pull/94)
+- fix: fix the bug of missing boolean type with a value of false in the generated request body
+  [100](https://github.com/Kong/lua-resty-aws/pull/100)
+- security: remove the documentation entry that contains a sample access key from AWS SDK. This
+  avoids false postive vulnerability report.
+  [102](https://github.com/Kong/lua-resty-aws/pull/102)
+- feat: container credential provider now supports using auth token defined in
+  AWS_CONTAINER_AUTHORIZATION_TOKEN and AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.
+  [107](https://github.com/Kong/lua-resty-aws/pull/107)
+- fix: operations without inputs (eg, some S3 ones) would cause errors to be thrown
+  [108](https://github.com/Kong/lua-resty-aws/pull/108)
+
+### 1.3.6 (25-Dec-2023)
+
+- fix: validator failure for some of the field types
+  [95](https://github.com/Kong/lua-resty-aws/pull/95)
 
 ### 1.3.5 (19-Sep-2023)
 

@@ -8,6 +8,8 @@ local execute_request = require("resty.aws.request.execute")
 local split = require("pl.utils").split
 local tablex = require("pl.tablex")
 
+local AWS_PUBLIC_DOMAIN_PATTERN = "^(.+)(%.amazonaws%.com)$"
+local AWS_VPC_ENDPOINT_DOMAIN_PATTERN = "^(.+)(%.vpce%.amazonaws%.com)$"
 
 -- case-insensitive lookup help.
 -- always throws an error!
@@ -130,8 +132,10 @@ end
 
 
 do
+  -- https://github.com/aws/aws-sdk-js/blob/c0ec9d31057748cda57eac863273f5ef5a695782/lib/region_config.js#L4
   -- returns the region with the last element replaced by "*"
-  -- "us-east-1" --> "us-east-*"
+  -- "us-east-1" --> "us-*"
+  -- "us-isob-west-1" --> "us-isob-*"
   local function generateRegionPrefix(region)
     if not region then
       return nil, "no region given"
@@ -141,7 +145,10 @@ do
     if #parts < 3 then
       return nil, "not a valid region, only 2 parts; "..region
     end
-    parts[#parts] = "*"
+
+    local n_parts = #parts
+    parts[n_parts] = nil
+    parts[n_parts - 1] = "*"
     return table.concat(parts, "-")
   end
 
@@ -156,9 +163,9 @@ do
   -- 'sts' configured for region 'us-west-2';
   -- {
   --   "us-west-2/sts",
-  --   "us-west-*/sts",
+  --   "us-*/sts",
   --   "us-west-2/*",
-  --   "us-west-*/*",
+  --   "us-*/*",
   --   "*/sts",
   --   "*/*",
   -- }
@@ -257,6 +264,24 @@ do
 end
 
 
+local is_regional_sts_domain do
+  -- from the list described in https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html
+  -- TODO: not sure if gov cloud also has their own endpoints so leave it for now
+  local stsRegionRegexes = {
+    [[sts\.(us|eu|ap|sa|ca|me)\-\w+\-\d+\.amazonaws\.com$]],
+    [[sts\.cn\-\w+\-\d+\.amazonaws\.com\.cn$]],
+  }
+
+  function is_regional_sts_domain(domain)
+    for _, entry in ipairs(stsRegionRegexes) do
+      if ngx.re.match(domain, entry, "jo") then
+        return true
+      end
+    end
+
+    return false
+  end
+end
 
 -- written from scratch
 
@@ -310,13 +335,16 @@ local function generate_service_methods(service)
                               method_name)
 
     service[method_name] = function(self, params)
+      params = params or {}
 
       --print(require("pl.pretty").write(self.config))
 
-      -- validate parameters
-      local ok, err = validate_input(params, operation.input, "params")
-      if not ok then
-        return nil, operation_prefix .. " validation error: " .. tostring(err)
+      -- validate parameters if we have any; eg. S3 "listBuckets" has none
+      if operation.input then
+        local ok, err = validate_input(params, operation.input, "params")
+        if not ok then
+          return nil, operation_prefix .. " validation error: " .. tostring(err)
+        end
       end
 
       -- implement stsRegionalEndpoints config setting,
@@ -328,10 +356,18 @@ local function generate_service_methods(service)
         assert(service.config.region, "region is required when using STS regional endpoints")
 
         if not service.config._regionalEndpointInjected then
-          local pre, post = service.config.endpoint:match("^(.+)(%.amazonaws%.com)$")
-          service.config.endpoint = pre .. "." .. service.config.region .. post
-          service.config.signingRegion = service.config.region
           service.config._regionalEndpointInjected = true
+          -- stsRegionalEndpoints is set to 'regional', so inject region into the
+          -- signingRegion to override global region_config_data
+          service.config.signingRegion = service.config.region
+
+          -- If the endpoint is a VPC endpoint DNS hostname, or a regional STS domain, then we don't need to inject the region
+          -- VPC endpoint DNS hostnames always contain region, see
+          -- https://docs.aws.amazon.com/vpc/latest/privatelink/privatelink-access-aws-services.html#interface-endpoint-dns-hostnames
+          if not service.config.endpoint:match(AWS_VPC_ENDPOINT_DOMAIN_PATTERN) and not is_regional_sts_domain(service.config.endpoint) then
+            local pre, post = service.config.endpoint:match(AWS_PUBLIC_DOMAIN_PATTERN)
+            service.config.endpoint = pre .. "." .. service.config.region .. post
+          end
         end
       end
 

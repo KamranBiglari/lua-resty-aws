@@ -1,6 +1,7 @@
 local pl_path = require "pl.path"
 local pl_config = require "pl.config"
 local tbl_clear = require "table.clear"
+local restore = require "spec.helpers"
 
 local hooked_file = {}
 
@@ -24,12 +25,15 @@ describe("SharedFileCredentials_spec", function()
   local SharedFileCredentials_spec
 
   before_each(function()
+    -- make ci happy
+    restore.setenv("HOME", "/home/ci-test")
     local _ = require("resty.aws.config").global -- load config before anything else
 
     SharedFileCredentials_spec = require "resty.aws.credentials.SharedFileCredentials"
   end)
 
   after_each(function()
+    restore()
     tbl_clear(hooked_file)
   end)
 
@@ -40,7 +44,7 @@ describe("SharedFileCredentials_spec", function()
   end)
 
   it("gets from config", function()
-    hook_config_file("~/.aws/config", {
+    hook_config_file(pl_path.expanduser("~/.aws/config"), {
       default = {
         aws_access_key_id = "access",
         aws_secret_access_key = "secret",
@@ -58,7 +62,7 @@ describe("SharedFileCredentials_spec", function()
   end)
 
   it("gets from credentials", function()
-    hook_config_file("~/.aws/credentials", {
+    hook_config_file(pl_path.expanduser("~/.aws/credentials"), {
       default = {
         aws_access_key_id = "access",
         aws_secret_access_key = "secret",
