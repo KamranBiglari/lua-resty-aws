@@ -7,7 +7,7 @@ install:
 	if [ ! -d "src/resty/aws/raw-api" ]; then \
 		bash ./update_api_files.sh; \
 	fi
-	luarocks make
+	luarocks make --only-server https://raw.githubusercontent.com/rocks-moonscript-org/moonrocks-mirror/daab2726276e3282dc347b89a42a5107c3500567
 
 dev:
 	bash ./update_api_files.sh
